@@ -49,13 +49,13 @@ async def main():
         "personalita": "Romantic"
     }
 
-    print("🔍 Verifica dati in input:", query)  # DEBUG
+    print(" Verifica dati in input:", query) 
 
     user_content = types.Content(role="user", parts=[types.Part(text=json.dumps(query))])
 
     async for event in agent_runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=user_content):
         if event.is_final_response() and event.content.parts:
-            print("🗨️ Risposta:", event.content.parts[0].text)
+            print("Risposta:", event.content.parts[0].text)
 
 if __name__ == "__main__":
     asyncio.run(main())
