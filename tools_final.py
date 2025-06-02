@@ -318,8 +318,8 @@ def display_downloaded_images(tool_context: ToolContext) -> Dict[str, Any]:
             Keys include:
             - "status" (str): "success", "partial_success", or "error".
             - "message" (str): A summary of how many images were displayed, available, or missing.
-            - "displayed_images" (List[str]): Filenames of images successfully displayed or marked as available
-                                             if IPython is not supported.
+            - "displayed_images" (List[Dict[str, str]]): List of successfully displayed/available images.
+                                                         Each dict has "filename" and "path" (absolute path).
             - "missing_images" (List[str]): Filenames of images that were not found on disk.
     """
     ipython_display_available: bool = True
@@ -349,39 +349,42 @@ def display_downloaded_images(tool_context: ToolContext) -> Dict[str, Any]:
             "missing_images": [],
         }
 
-    displayed_images_list: List[str] = []
-    missing_images_list: List[str] = []
-    available_images_list: List[str] = [] # For when IPython isn't there
+    # Stores dicts: {"filename": str, "path": str}
+    displayed_images_list: List[Dict[str, str]] = []
+    available_images_list: List[Dict[str, str]] = []
+
+    missing_images_list: List[str] = [] # Still stores filenames (strings)
 
     image_filenames: List[str] = list(tool_context.state["images"].keys())
 
     for image_filename in image_filenames:
         image_path: str = os.path.join(ref_dir, image_filename)
+        # Get absolute path for the returned dictionary
+        abs_image_path: str = os.path.abspath(image_path)
+
         if os.path.exists(image_path):
+            image_info = {"filename": image_filename, "path": abs_image_path}
             if ipython_display_available:
                 try:
-                    logging.info(f"Displaying image: {image_filename} from {image_path}")
-                    display(IPImage(filename=image_path)) # Use aliased Image
-                    displayed_images_list.append(image_filename)
+                    logging.info(f"Displaying image: {image_filename} from {abs_image_path}")
+                    display(IPImage(filename=image_path)) # IPython uses the relative/given path
+                    displayed_images_list.append(image_info)
                 except Exception as e: # pylint: disable=broad-except
                     logging.warning(f"Error displaying image {image_filename} with IPython: {e}", exc_info=True)
-                    available_images_list.append(image_filename)
+                    available_images_list.append(image_info)
             else:
-                logging.info(f"Image available (display not supported): {image_filename} at {image_path}")
-                available_images_list.append(image_filename)
+                logging.info(f"Image available (display not supported): {image_filename} at {abs_image_path}")
+                available_images_list.append(image_info)
         else:
             logging.warning(f"Image file not found at {image_path} for display.")
             missing_images_list.append(image_filename)
 
-    successfully_processed_images: List[str] = displayed_images_list + available_images_list
+    successfully_processed_images: List[Dict[str,str]] = displayed_images_list + available_images_list
 
     final_status: str
     final_message: str
 
     if not successfully_processed_images and not missing_images_list:
-        # This case implies tool_context.state["images"] was empty, already handled.
-        # Or, if it was not empty but all entries were somehow filtered before loop,
-        # it's an unusual state.
         logging.info("No images were processed for display (list might have been empty or filtered).")
         final_status = "success"
         final_message = "No images were processed for display."
@@ -405,6 +408,6 @@ def display_downloaded_images(tool_context: ToolContext) -> Dict[str, Any]:
     return {
         "status": final_status,
         "message": final_message,
-        "displayed_images": successfully_processed_images,
+        "displayed_images": successfully_processed_images, # Now a List[Dict[str,str]]
         "missing_images": missing_images_list,
     }
