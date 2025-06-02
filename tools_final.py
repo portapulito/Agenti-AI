@@ -2,7 +2,7 @@ import os
 import requests
 import time
 import logging
-from typing import Dict, List, Any, Union # Added Any and Union
+from typing import Dict, List, Any # Removed Union
 
 from google.adk.tools import ToolContext
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool # Not used directly, but good to keep if other tools might
@@ -12,18 +12,17 @@ from PIL import Image # Used in display_downloaded_images if IPython is availabl
 
 def scrape_images_from_urls(
     tool_context: ToolContext,
-    image_urls: Union[str, List[str]],
+    image_urls: str, # Changed from Union[str, List[str]]
 ) -> Dict[str, Any]:
     """
-    Downloads images from a list of URLs or a single newline/comma-separated string of URLs.
+    Downloads images from a newline/comma-separated string of URLs.
     Saves them to a local directory "reference_images". Updates tool_context.state with downloaded image filenames.
 
     Args:
         tool_context: The ADK (Agent Development Kit) tool context, providing access to state and artifact saving.
                       `tool_context.state["images"]` (Dict[str, str]) will be initialized if not present,
                       and populated with {image_filename: ""} for each successfully downloaded image.
-        image_urls: A string containing one or more image URLs, separated by newlines or commas,
-                    or a list of image URL strings.
+        image_urls: A string containing one or more image URLs, separated by newlines or commas.
 
     Returns:
         Dict[str, Any]: A dictionary containing the results of the download operation.
@@ -43,19 +42,15 @@ def scrape_images_from_urls(
             os.makedirs(ref_dir)
 
         url_list: List[str]
-        if isinstance(image_urls, list):
-            url_list = [url.strip() for url in image_urls if url.strip()]
-        elif isinstance(image_urls, str):
-            url_list = []
-            for url in image_urls.replace(',', '\n').split('\n'):
-                url_val = url.strip()
-                if url_val:
-                    url_list.append(url_val)
+        if isinstance(image_urls, str): # Ensure it's a string
+            url_list = [url.strip() for url in image_urls.replace(',', '\n').split('\n') if url.strip()]
         else:
-            logging.error("image_urls must be a string or list of strings.")
+            # This case should ideally not be reached if type hinting is enforced by caller,
+            # but as a safeguard:
+            logging.error(f"image_urls was expected to be a string, but got {type(image_urls)}.")
             return {
                 "status": "error",
-                "message": "Invalid type for image_urls. Must be string or list of strings.",
+                "message": f"Invalid type for image_urls. Must be a single string. Got {type(image_urls)}",
                 "total_urls_processed": 0,
                 "successful_downloads": 0,
                 "failed_downloads": 0,
@@ -63,10 +58,14 @@ def scrape_images_from_urls(
             }
 
         if not url_list:
-            logging.warning("No valid URLs found in the provided input.")
+            logging.warning("No valid URLs found in the provided input string.")
+            # Considered if this should be "success" if input string is empty vs "error".
+            # "error" seems more appropriate if non-empty string yields no URLs.
+            # If image_urls itself is empty, it could be "success" with 0 processed.
+            # For now, keeping as error if url_list is empty after processing.
             return {
-                "status": "error", # Or "success" if an empty list is not an error
-                "message": "No valid URLs found to process.",
+                "status": "error",
+                "message": "No valid URLs found to process from the input string.",
                 "total_urls_processed": 0,
                 "successful_downloads": 0,
                 "failed_downloads": 0,
@@ -170,18 +169,18 @@ def scrape_images_from_urls(
 
         final_status: str
         final_message: str
-        if successful_downloads == 0 and failed_downloads > 0:
+        if successful_downloads == 0 and failed_downloads > 0 and len(url_list) > 0 : # Ensure it's an error only if URLs were actually processed
             final_status = "error"
-            final_message = f"Could not download any images. All {failed_downloads} downloads failed."
+            final_message = f"Could not download any images. All {failed_downloads} downloads failed out of {len(url_list)} URLs processed."
         elif failed_downloads > 0:
             final_status = "partial_success"
-            final_message = f"Successfully downloaded {successful_downloads} images. {failed_downloads} downloads failed."
+            final_message = f"Successfully downloaded {successful_downloads} images. {failed_downloads} downloads failed out of {len(url_list)} URLs processed."
         elif successful_downloads > 0 :
             final_status = "success"
-            final_message = f"Successfully downloaded all {successful_downloads} images."
-        else: # No URLs processed or other edge case
-            final_status = "success" # Or error, depending on expectation for no URLs
-            final_message = "No images were processed."
+            final_message = f"Successfully downloaded all {successful_downloads} images out of {len(url_list)} URLs processed."
+        else: # No URLs processed (e.g. image_urls was empty string or only whitespace)
+            final_status = "success"
+            final_message = "No image URLs were provided or found in the input string."
 
 
         if final_status == "error":
@@ -202,9 +201,9 @@ def scrape_images_from_urls(
 
     except Exception as e: # pylint: disable=broad-except
         # Check if ref_dir was created, to customize message slightly
-        ref_dir_exists = 'ref_dir' in locals() and os.path.exists(ref_dir)
+        ref_dir_exists = 'ref_dir' in locals() and os.path.exists(ref_dir) # type: ignore
         base_error_message: str = f"Overall error in scrape_images_from_urls: {str(e)}"
-        if not ref_dir_exists :
+        if not ref_dir_exists : # type: ignore
             error_message = f"Failed to initialize image download environment (e.g., create directory '{os.path.join(os.getcwd(), 'reference_images')}'): {str(e)}"
         else:
             error_message = base_error_message
