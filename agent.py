@@ -50,6 +50,11 @@ Quando l'utente chiede di **vedere/mostrare/visualizzare immagini**:
   - Mostra i nomi file e lo status per ciascuna immagine
   - Usa IPython.display per mostrare le immagini direttamente
   - Gestisce gracefully i file mancanti o corrotti
+  - Dopo aver ricevuto i risultati da `display_downloaded_images`:
+    - Se lo stato è "success" o "partial_success" e ci sono immagini in `displayed_images`:
+      - Per ogni immagine (che è un oggetto con "filename" e "path"):
+        - Comunica all'utente: "L'immagine '[filename]' è disponibile al percorso: [path]. Puoi provare ad aprirla anche con questo link: file:///[path_con_forward_slash]" (assicurati di convertire i backslash in forward slash per il link file:///).
+    - Altrimenti, se lo stato indica un errore o non ci sono immagini, riporta il messaggio di stato fornito dal tool.
 
 **Trigger**:
 - "Mostrami le immagini"
