@@ -280,8 +280,8 @@ async def save_image_as_artifact(
         logging.debug(f"Detected MIME type for {image_filename}: {mime_type}")
 
         await tool_context.save_artifact(
-            artifact_name=image_filename, # Use image_filename as the unique artifact name
-            value=types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            image_filename, # artifact_name keyword removed
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
         )
 
         logging.debug(f"Artifact {image_filename} saved successfully")
